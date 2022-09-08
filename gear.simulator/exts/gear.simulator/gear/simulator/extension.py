@@ -28,15 +28,34 @@ class MyExtension(omni.ext.IExt):
         # gear
         self.currect_gear_is_driver = False
 
-        self._window = ui.Window("My Window", width=300, height=300)
+        self.current_teethNum = 12
+        self.current_radius = 1.0
+        self.current_Ad = 0.1
+        self.current_De = 0.1 
+        self.current_base = 0.2
+        self.current_p_angle = 20 * 3.1415936 / 180
+        self.current_width=0.2
+        self.current_skew=0
+        self.current_conangle=0
+        self.current_rack=0
+        self.current_crown=0.0
+
+        self._window = ui.Window("My Window", width=300)
         with self._window.frame:
             self._window.frame.style = julia_modeler_style
-            with ui.VStack():
+            with ui.VStack(height = 0):
                 # eco mode
-                CustomBoolWidget(label ="Eco mode:", default_value=False, tooltip = "Turn on/off eco mode in the render setting.", on_checked_fn = self.toggle_driver)
-                       
+                CustomBoolWidget(label ="Driver:", default_value=False, tooltip = "Turn on/off eco mode in the render setting.", on_checked_fn = self.toggle_driver)
+                CustomSliderWidget(min=3, max=20, num_type = "int", label="Teeth number:", default_val=12, 
+                                        tooltip = "", on_slide_fn=self.set_teethNum) 
+
                 ui.Button("Create mesh", clicked_fn=self.create_mesh)
                 ui.Button("debug_rig_d6", clicked_fn=self.debug_rig_d6)
+
+    # ui function
+    def set_teethNum(self, teethNum):
+        self.current_teethNum = teethNum
+
 
     def on_shutdown(self):
         print("[gear.simulator] MyExtension shutdown")
@@ -80,51 +99,21 @@ class MyExtension(omni.ext.IExt):
         prim_path = f"{model_xform_path_str}/Mesh"
         mesh = UsdGeom.Mesh.Define(stage, prim_path)
 
-        
+        # add gear
         from .model.add_mesh_gears import add_gear
 
-        teethNum = np.random.randint(5, 20)
-        radius = 1.0
-        Ad = 0.1
-        De = 0.1 
-        base = 0.2
-        p_angle = 20 * 3.1415936 / 180
-        width=0.2
-        skew=0
-        conangle=0
-        rack=0
-        crown=0.0
-
         verts, faces, verts_tip, verts_valley = add_gear(
-            teethNum,
-            radius,
-            Ad,
-            De,
-            base,
-            p_angle,
-            width,
-            skew,
-            conangle,
-            crown
+            self.current_teethNum,
+            self.current_radius,
+            self.current_Ad,
+            self.current_De,
+            self.current_base,
+            self.current_p_angle,
+            self.current_width,
+            self.current_skew,
+            self.current_conangle,
+            self.current_crown
             )
-        # verts = [(1.0, 1.0, -1.0),
-        #  (1.0, -1.0, -1.0),
-        #  (-1.0, -1.0, -1.0),
-        #  (-1.0, 1.0, -1.0),
-        #  (1.0, 1.0, 1.0),
-        #  (1.0, -1.0, 1.0),
-        #  (-1.0, -1.0, 1.0),
-        #  (-1.0, 1.0, 1.0)]
-
-        # faces = [(0, 1, 2, 3),
-        #  (4, 7, 6, 5),         # (4, 7, 6, 5) --> (4, 5, 6, 7) [4567 is wrong]
-        #  (0, 4, 5, 1),
-        #  (1, 5, 6, 2),
-        #  (2, 6, 7, 3),
-        #  (4, 0, 3, 7)]
-
-        # normals = self.get_normals(verts, faces)    
-        # print("normals", normals)
         
         # triangulate
         # new_faces = []
@@ -151,11 +140,11 @@ class MyExtension(omni.ext.IExt):
 
         # add rigid body
         from omni.physx.scripts.utils import setRigidBody
-        setRigidBody(gear_model_prim, "meshSimplification", False)
+        setRigidBody(gear_model_prim, "convexDecomposition", False)
 
         # add joint
         
-        self.debug_rig_d6(gear_root=gear_xform_path_str)
+        self.debug_rig_d6(gear_root=gear_xform_path_str, is_driver=self.currect_gear_is_driver)
 
     def debug_rig_d6(self, gear_root = "/World/gear", is_driver = True):
         self._stage = omni.usd.get_context().get_stage()
