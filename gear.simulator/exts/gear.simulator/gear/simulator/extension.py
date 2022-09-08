@@ -12,6 +12,10 @@ import omni.ui as ui
 #################### pxr import ##################################
 from pxr import UsdGeom, Vt, Sdf, Gf, UsdPhysics, Usd
 
+#################################  ui #######################################
+from  .ui.style import julia_modeler_style
+from .ui.custom_ui_widget import *
+
 # Any class derived from `omni.ext.IExt` in top level module (defined in `python.modules` of `extension.toml`) will be
 # instantiated when extension gets enabled and `on_startup(ext_id)` will be called. Later when extension gets disabled
 # on_shutdown() is called.
@@ -21,11 +25,16 @@ class MyExtension(omni.ext.IExt):
     def on_startup(self, ext_id):
         print("[gear.simulator] MyExtension startup")
 
+        # gear
+        self.currect_gear_is_driver = False
+
         self._window = ui.Window("My Window", width=300, height=300)
         with self._window.frame:
+            self._window.frame.style = julia_modeler_style
             with ui.VStack():
-                ui.Label("Some Label")
-
+                # eco mode
+                CustomBoolWidget(label ="Eco mode:", default_value=False, tooltip = "Turn on/off eco mode in the render setting.", on_checked_fn = self.toggle_driver)
+                       
                 ui.Button("Create mesh", clicked_fn=self.create_mesh)
                 ui.Button("debug_rig_d6", clicked_fn=self.debug_rig_d6)
 
@@ -144,8 +153,11 @@ class MyExtension(omni.ext.IExt):
         from omni.physx.scripts.utils import setRigidBody
         setRigidBody(gear_model_prim, "meshSimplification", False)
 
+        # add joint
+        
+        self.debug_rig_d6(gear_root=gear_xform_path_str)
 
-    def debug_rig_d6(self, gear_root = "/World/gear"):
+    def debug_rig_d6(self, gear_root = "/World/gear", is_driver = True):
         self._stage = omni.usd.get_context().get_stage()
         self._damping = 1e5
         self._stiffness = 2e5
@@ -168,10 +180,10 @@ class MyExtension(omni.ext.IExt):
         # setup joint to floating hand base
         component = UsdPhysics.Joint.Define(
             self._stage, Sdf.Path(f"{gear_root}/AnchorToHandBaseD6") # allegro/
-        )
+        ) 
 
         
-        self._articulation_root = self._stage.GetPrimAtPath("/World/gear/model")   
+        self._articulation_root = self._stage.GetPrimAtPath(f"{gear_root}/model")   
         baseLocalToWorld = UsdGeom.Xformable(self._articulation_root).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         jointPosition = baseLocalToWorld.GetInverse().Transform(xformLocalToWorldTrans)
         jointPose = Gf.Quatf(baseLocalToWorld.GetInverse().RemoveScaleShear().ExtractRotationQuat())
@@ -189,26 +201,33 @@ class MyExtension(omni.ext.IExt):
         component.CreateBreakTorqueAttr().Set(sys.float_info.max)
 
         rootJointPrim = component.GetPrim()
-        for dof in ["transX", "transY", "transZ"]:
-            driveAPI = UsdPhysics.DriveAPI.Apply(rootJointPrim, dof)
-            driveAPI.CreateTypeAttr("force")
-            # driveAPI.CreateMaxForceAttr(self._drive_max_force)
-            driveAPI.CreateTargetPositionAttr(0.0)
-            driveAPI.CreateDampingAttr(self._damping)
-            driveAPI.CreateStiffnessAttr(self._stiffness)
+        if is_driver:
+            for dof in ["transX", "transY", "transZ"]:
+                driveAPI = UsdPhysics.DriveAPI.Apply(rootJointPrim, dof)
+                driveAPI.CreateTypeAttr("force")
+                # driveAPI.CreateMaxForceAttr(self._drive_max_force)
+                driveAPI.CreateTargetPositionAttr(0.0)
+                driveAPI.CreateDampingAttr(self._damping)
+                driveAPI.CreateStiffnessAttr(self._stiffness)
 
-        for rotDof in ["rotX", "rotY", "rotZ"]:
-            driveAPI = UsdPhysics.DriveAPI.Apply(rootJointPrim, rotDof)
-            driveAPI.CreateTypeAttr("force")
-            # driveAPI.CreateMaxForceAttr(self._drive_max_force)
-            driveAPI.CreateTargetPositionAttr(0.0)
-            driveAPI.CreateDampingAttr(self._damping)
-            driveAPI.CreateStiffnessAttr(self._stiffness)
+            for rotDof in ["rotX", "rotY", "rotZ"]:
+                driveAPI = UsdPhysics.DriveAPI.Apply(rootJointPrim, rotDof)
+                driveAPI.CreateTypeAttr("force")
+                # driveAPI.CreateMaxForceAttr(self._drive_max_force)
+                driveAPI.CreateTargetPositionAttr(0.0)
+                driveAPI.CreateDampingAttr(self._damping)
+                driveAPI.CreateStiffnessAttr(self._stiffness)
 
+        # set limiter
         prim = component.GetPrim()
         for limit_name in ["transX", "transY", "transZ", "rotX", "rotY"]: # "rotZ"
             limit_api = UsdPhysics.LimitAPI.Apply(prim, limit_name)
             limit_api.CreateLowAttr(1.0)
             limit_api.CreateHighAttr(-1.0)
 
-            
+    
+    def toggle_driver(self, is_driver:bool):
+        """
+        Current gear is driver
+        """
+        self.currect_gear_is_driver = is_driver
