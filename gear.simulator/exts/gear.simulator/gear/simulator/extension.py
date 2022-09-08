@@ -25,6 +25,10 @@ class MyExtension(omni.ext.IExt):
     def on_startup(self, ext_id):
         print("[gear.simulator] MyExtension startup")
 
+        # stage
+        stage = omni.usd.get_context().get_stage()
+        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
+
         # gear
         self.currect_gear_is_driver = False
 
@@ -51,6 +55,22 @@ class MyExtension(omni.ext.IExt):
 
                 ui.Button("Create mesh", clicked_fn=self.create_mesh)
                 ui.Button("debug_rig_d6", clicked_fn=self.debug_rig_d6)
+                ui.Button("Create tooth", clicked_fn=self.create_tooth)
+
+                with ui.CollapsableFrame("SCENE UTILITY"):
+                    with ui.VStack(height=0, spacing=4):
+                        ui.Line(style_type_name_override="HeaderLine")
+
+                        # eco mode
+                        CustomBoolWidget(label ="Eco mode:", default_value=False, tooltip = "Turn on/off eco mode in the render setting.", on_checked_fn = self.toggle_eco_mode)
+                        # open a new stage
+                        ui.Button("New scene", height = 40, name = "load_button", clicked_fn=self.new_scene, style={ "margin": 4}, tooltip = "open a new empty stage")
+                        # ground plane
+                        ui.Button("Add/Remove ground plane", height = 40, name = "load_button", clicked_fn=self.toggle_ground_plane, style={ "margin": 4}, tooltip = "Add or remove the ground plane")
+                        # light intensity
+                        ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
+                        CustomSliderWidget(min=0, max=3000, label="Light intensity:", default_val=1000, on_slide_fn = self.change_light_intensity)
+
 
     # ui function
     def set_teethNum(self, teethNum):
@@ -220,3 +240,41 @@ class MyExtension(omni.ext.IExt):
         Current gear is driver
         """
         self.currect_gear_is_driver = is_driver
+
+    def create_tooth(self):
+        print("create_tooth")
+        from .model.utils import create_gear
+
+        stage = omni.usd.get_context().get_stage()
+
+        # create xform as root
+        gear_xform_path_str = omni.usd.get_stage_next_free_path(stage, f"/World/gear", False)
+
+        omni.kit.commands.execute(
+            "CreatePrim",
+            prim_path=gear_xform_path_str,
+            prim_type="Xform", # Xform
+            select_new_prim=False,
+        ) 
+
+        create_gear(
+            self.current_teethNum,
+            self.current_radius,
+            self.current_Ad,
+            self.current_De,
+            self.current_base,
+            self.current_p_angle,
+            self.current_width,
+            self.current_skew,
+            self.current_conangle,
+            self.current_crown,
+            gear_root=gear_xform_path_str
+            )
+
+        # add rigid body
+        from omni.physx.scripts.utils import setRigidBody
+        gear_xform_prim = stage.GetPrimAtPath(gear_xform_path_str)
+        setRigidBody(gear_xform_prim, "convexDecomposition", False)
+
+    
+    ############################################## scene utiltiy #####################################
