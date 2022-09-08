@@ -1,0 +1,21 @@
+ def get_normals(self, verts, faces):
+        """
+        Get normal
+        """
+
+        normals = []
+        for i in range(len(faces)):
+            p0 = np.array(verts[faces[i][0]])
+            p1 = np.array(verts[faces[i][1]])
+            p2 = np.array(verts[faces[i][2]])
+            p3 = np.array(verts[faces[i][3]])
+
+            v01 = p1 - p0
+            v12 = p2 - p1
+            n = np.cross(v01, v12)
+            n = n / (np.linalg.norm(n) + 1e-8)
+            
+            for j in range(4):
+                normals.append(n.tolist())
+
+        return normals
