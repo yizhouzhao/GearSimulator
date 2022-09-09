@@ -72,13 +72,13 @@ Right now, the gear is just a mesh with any collision or rigid body.
 
 Click `Add Physics` to add rigid body, and D6 joint to the gear. The D6 joint allows it to rotate on z-axis.
 
-![add_physics](img/add_physics.png)
+![add_physics](img/add_physics.PNG)
 
 ## 3. Add Driver
 
 To make the gear rotate by itself, we can click `Add Driver` with a specific speed.
 
-![add_driver](img/add_driver.png)
+![add_driver](img/add_driver.PNG)
 
 
 # Additional features
@@ -89,4 +89,4 @@ Two simulate two gears rotate on the same axis, select two gears and
 
 click `Bind Gear` to add a fixed joint between them.
 
-![bind_gear](img/bind_gear.png)
+![bind_gear](img/bind_gear.PNG)
