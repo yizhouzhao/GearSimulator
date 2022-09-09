@@ -27,11 +27,9 @@ The file structure of this extension should look like:
 <your-path-to-GearSimulator>
     └───exts    [Omniverse extenstion]
          └───gear.simulator
-                └───fonts   [.tff font asset]
                 └───config  [Extension config]
-                └───model    [Path to save 3D Font model ]
                 └───icons   [Extension icons]
-                └───plat/with/font   [source code]
+                └───gear/simulator   [source code]
     └───img   
     │   .gitignore 
     │   README.md  
