@@ -169,6 +169,6 @@ def create_gear(teethNum, radius, Ad, De, base, p_angle,
     body_inside_faces = createFaces(body_verts_inner_top, body_verts_inner_bottom, closed=True, flipped=False)
     body_faces.extend(body_inside_faces)
 
-    print("gear body", len(body_verts), len(body_faces), body_verts, body_faces)
+    # print("gear body", len(body_verts), len(body_faces), body_verts, body_faces)
     create_mesh_from_verts_faces(body_verts, body_faces, mesh_path_str=f"{gear_root}/cubo")
 

@@ -61,6 +61,7 @@ class MyExtension(omni.ext.IExt):
  
         # subscribe to Physics updates:
         self.total_time = 0
+        self.timeline = omni.timeline.get_timeline_interface()
 
         # Track selection change
         events = omni.usd.get_context().get_stage_event_stream()
@@ -160,8 +161,15 @@ class MyExtension(omni.ext.IExt):
     def get_teethNum(self, teethNum):
         self.current_teethNum = teethNum
 
+        if self.is_update_gear:
+            self.create_mesh()
+
     def get_radius(self, radius):
         self.current_radius = radius
+
+        print("is_update_gear:", self.is_update_gear)
+        if self.is_update_gear:
+            self.create_mesh()
 
     def get_width(self, width):
         self.current_width = width
@@ -356,17 +364,26 @@ class MyExtension(omni.ext.IExt):
         """
         
         stage = omni.usd.get_context().get_stage()
+        
+        # if updating
+        if self.is_update_gear:
+            self.remove_d6_driver()
+            omni.kit.commands.execute("DeletePrims", paths=[f"{self.current_gear_path_str}/model"])
+            gear_xform_path_str = self.current_gear_path_str
 
-        # create xform as root
-        gear_xform_path_str = omni.usd.get_stage_next_free_path(stage, f"/World/gear", False)
+        else:
+            gear_path_str = f"/World/gear" 
+            # create xform as root
+            gear_xform_path_str = omni.usd.get_stage_next_free_path(stage, gear_path_str, False)
+        
+            omni.kit.commands.execute(
+                "CreatePrim",
+                prim_path=gear_xform_path_str,
+                prim_type="Xform", # Xform
+                select_new_prim=False,
+            ) 
 
-        omni.kit.commands.execute(
-            "CreatePrim",
-            prim_path=gear_xform_path_str,
-            prim_type="Xform", # Xform
-            select_new_prim=False,
-        ) 
-
+        self.current_gear_path_str = gear_xform_path_str
         # create xform as root
         model_xform_path_str = omni.usd.get_stage_next_free_path(stage, f"{gear_xform_path_str}/model", False)
 
@@ -390,23 +407,25 @@ class MyExtension(omni.ext.IExt):
             self.current_crown,
             gear_root=model_xform_path_str
             )
-
-        # add rigid body
+        
         model_xform_prim = stage.GetPrimAtPath(model_xform_path_str)
         if self.current_radius >= 0:
             setRigidBody(model_xform_prim, "convexHull", False)
         else:
             setRigidBody(model_xform_prim, "convexDecomposition", False)
 
-        # add d6 joint
-        self.rig_d6(gear_root=gear_xform_path_str, is_driver=False)
+        # if create for the first time, 
+        if not self.is_update_gear:
+            self.set_gear()
 
-        # selection
-        selection = omni.usd.get_context().get_selection()
-        selection.clear_selected_prim_paths()
-        selection.set_prim_path_selected(gear_xform_path_str, True, True, True, True)
-
-        self.current_gear_path_str = gear_xform_path_str
+    def set_gear(self):
+        """
+        Set up gear
+        """
+        # add rigid body
+        
+        gear_xform_path_str = self.current_gear_path_str
+        stage = omni.usd.get_context().get_stage()
 
         # set attribute
         gear_root_prim = stage.GetPrimAtPath(gear_xform_path_str)
@@ -418,12 +437,24 @@ class MyExtension(omni.ext.IExt):
             else:
                 gear_root_prim.CreateAttribute(f"gear:{attr_name}",  Sdf.ValueTypeNames.Float, False).Set(getattr(self, f"current_{attr_name}"))
         
+
         gear_root_prim.CreateAttribute(f"gear:is_driver",  Sdf.ValueTypeNames.Bool, False).Set(False)
         gear_root_prim.CreateAttribute(f"gear:driver_speed",  Sdf.ValueTypeNames.Float, False).Set(0)
         
         # reset driver
         if gear_xform_path_str in self.drivers:
             del self.drivers[gear_xform_path_str]
+
+        # add d6 joint
+        self.rig_d6(gear_root=gear_xform_path_str, is_driver=False)
+
+        # selection
+        selection = omni.usd.get_context().get_selection()
+        selection.clear_selected_prim_paths()
+        selection.set_prim_path_selected(gear_xform_path_str, True, False, True, True)
+        
+
+
     ############################################## scene utiltiy #####################################
 
     def new_scene(self):
@@ -543,7 +574,7 @@ class MyExtension(omni.ext.IExt):
         if event.type == int(omni.usd.StageEventType.SELECTION_CHANGED):
 
             # reset gear button
-            self.current_gear_path_str = None
+            self.current_gear_path_str = ""
             self.is_update_gear = False
             self.create_gear_botton.text = "Create Gear"
             self.add_driver_botton.text = "Add Driver"
