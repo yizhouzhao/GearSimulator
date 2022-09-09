@@ -122,12 +122,12 @@ class MyExtension(omni.ext.IExt):
                    
                         ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
 
-                        CustomSliderWidget(min=-2, max=2, num_type = "float", label="Speed:", default_val=0.05, 
+                        self.driver_speed_ui = CustomSliderWidget(min=-2, max=2, num_type = "float", label="Speed:", default_val=0.05, 
                                                         tooltip = "Gear rotation speed", on_slide_fn=self.get_driver_speed, display_range = True)                       
                      
                         self.add_driver_botton = ui.Button("Add Driver", height = 40, name = "load_button", clicked_fn=self.add_d6_driver)
 
-                        self.remove_driver_botton = ui.Button("Remove Driver", height = 20, name = "load_button", clicked_fn=self.add_d6_driver, visible = False)
+                        self.remove_driver_botton = ui.Button("Remove Driver", height = 20, name = "load_button", clicked_fn=self.remove_d6_driver, visible = False)
                         
 
 
@@ -275,29 +275,81 @@ class MyExtension(omni.ext.IExt):
         damping = 1e8
         stiffness = 0 #2e5
 
-        gear_root = self.current_gear_path_str
+        # get gear root prim 
+        gear_root_path_str = self.current_gear_path_str
+        gear_root_prim = stage.GetPrimAtPath(gear_root_path_str)
 
-        component = UsdPhysics.Joint.Get(
-            stage, Sdf.Path(f"{gear_root}/D6Joint") # allegro/
-        ) 
+        # update attribute
+        is_driver = gear_root_prim.GetAttribute("gear:is_driver").Get()
 
-        rootJointPrim = component.GetPrim()
-        for rotDof in ["rotZ"]:
-            if not UsdPhysics.DriveAPI(rootJointPrim, rotDof):
-                driveAPI = UsdPhysics.DriveAPI.Apply(rootJointPrim, rotDof)
+        # not a driver at present, add driver
+        if not is_driver:
+            component = UsdPhysics.Joint.Get(
+                stage, Sdf.Path(f"{gear_root_path_str}/D6Joint") # allegro/
+            ) 
+
+            jointPrim = component.GetPrim()
+            for rotDof in ["rotZ"]:
+                driveAPI = UsdPhysics.DriveAPI(jointPrim, rotDof)
+                if not driveAPI:
+                    driveAPI = UsdPhysics.DriveAPI.Apply(jointPrim, rotDof)
+
                 driveAPI.CreateTypeAttr("force")
                 # driveAPI.CreateMaxForceAttr(self._drive_max_force)
                 driveAPI.CreateTargetPositionAttr(0.0)
                 driveAPI.CreateDampingAttr(damping) 
                 driveAPI.CreateStiffnessAttr(stiffness)
 
+            gear_root_prim.GetAttribute("gear:is_driver").Set(True)
+
+        # just update driver records
+        gear_root_prim.GetAttribute("gear:driver_speed").Set(self.current_gear_driver_speed)
+
         # record driver
-        self.drivers[gear_root] = {
-            "Anchor":f"{gear_root}/Anchor",
-            "D6Joint":f"{gear_root}/D6Joint",
+        self.drivers[gear_root_path_str] = {
+            "Anchor":f"{gear_root_path_str}/Anchor",
+            "D6Joint":f"{gear_root_path_str}/D6Joint",
             "speed": self.current_gear_driver_speed,
         }
-   
+
+        # selection
+        selection = omni.usd.get_context().get_selection()
+        selection.clear_selected_prim_paths()
+        selection.set_prim_path_selected(gear_root_path_str, True, True, True, True)
+
+    def remove_d6_driver(self):
+        # setup joint to floating hand base
+        stage = omni.usd.get_context().get_stage()
+
+        # get gear root prim 
+        gear_root_path_str = self.current_gear_path_str
+        gear_root_prim = stage.GetPrimAtPath(gear_root_path_str)
+
+        # update attribute
+        is_driver = gear_root_prim.GetAttribute("gear:is_driver").Get()
+
+        # remove driver
+        if is_driver:
+            component = UsdPhysics.Joint.Get(
+                stage, Sdf.Path(f"{gear_root_path_str}/D6Joint") # allegro/
+            ) 
+            jointPrim = component.GetPrim()
+            # jointPrim.RemoveAPI(UsdPhysics.DriveAPI)
+            omni.kit.commands.execute("RemovePhysicsComponent", usd_prim=jointPrim, component="PhysicsDriveAPI", multiple_api_token=None)
+
+            # delete physics update
+            if gear_root_path_str in self.drivers:
+                del self.drivers[gear_root_path_str]
+
+            # update attribute
+            gear_root_prim.GetAttribute(f"gear:is_driver").Set(False)
+            gear_root_prim.GetAttribute(f"gear:driver_speed").Set(0)
+
+        # selection
+        selection = omni.usd.get_context().get_selection()
+        selection.clear_selected_prim_paths()
+        selection.set_prim_path_selected(gear_root_path_str, True, True, True, True)
+
     def create_mesh(self):
         """
         Greate gear mesh with rigidbody and collision
@@ -365,6 +417,9 @@ class MyExtension(omni.ext.IExt):
                   gear_root_prim.CreateAttribute(f"gear:{attr_name}",  Sdf.ValueTypeNames.Int, False).Set(getattr(self, f"current_{attr_name}"))
             else:
                 gear_root_prim.CreateAttribute(f"gear:{attr_name}",  Sdf.ValueTypeNames.Float, False).Set(getattr(self, f"current_{attr_name}"))
+        
+        gear_root_prim.CreateAttribute(f"gear:is_driver",  Sdf.ValueTypeNames.Bool, False).Set(False)
+        gear_root_prim.CreateAttribute(f"gear:driver_speed",  Sdf.ValueTypeNames.Float, False).Set(0)
         
         # reset driver
         if gear_xform_path_str in self.drivers:
@@ -453,8 +508,8 @@ class MyExtension(omni.ext.IExt):
                 anchor_xform = UsdGeom.Xform(anchor)
                 # anchor
                 ops = anchor_xform.GetOrderedXformOps()
-                translateOp = ops[0]
-                assert translateOp.GetOpType() == UsdGeom.XformOp.TypeTranslate
+                # translateOp = ops[0]
+                # assert translateOp.GetOpType() == UsdGeom.XformOp.TypeTranslate
                 orientOp = ops[1]
                 assert orientOp.GetOpType() == UsdGeom.XformOp.TypeOrient
 
@@ -488,6 +543,7 @@ class MyExtension(omni.ext.IExt):
         if event.type == int(omni.usd.StageEventType.SELECTION_CHANGED):
 
             # reset gear button
+            self.current_gear_path_str = None
             self.is_update_gear = False
             self.create_gear_botton.text = "Create Gear"
             self.add_driver_botton.text = "Add Driver"
@@ -508,7 +564,6 @@ class MyExtension(omni.ext.IExt):
                 
                 # if select gear, update current ui information
                 if gear_root:
-                    self.is_update_gear = True # updating gear rather than create new gear
                     for attr_name in GEAR_PROPERTIES:
                         attr_value = gear_root.GetAttribute(f"gear:{attr_name}").Get()
                         # if attr_name == "teethNum":
@@ -518,7 +573,16 @@ class MyExtension(omni.ext.IExt):
 
                         ui_piece = getattr(self, f"gear_{attr_name}_ui")
                         ui_piece.model.set_value(attr_value)
- 
-                        self.create_gear_botton.text = "Update Gear"
+
+                    # update button
+                    self.current_gear_path_str = gear_root.GetPath().pathString
+                    self.is_update_gear = True # updating gear rather than create new gear
+                    self.create_gear_botton.text = "Update Gear"
+
+                    if gear_root.GetAttribute(f"gear:is_driver").Get():
+                        speed = gear_root.GetAttribute(f"gear:driver_speed").Get()
+                        self.driver_speed_ui.model.set_value(speed)
+                        self.add_driver_botton.text = "Update Driver"
+                        self.remove_driver_botton.visible = True
                     
             
