@@ -111,13 +111,15 @@ class MyExtension(omni.ext.IExt):
 
                                 self.gear_p_angle_ui = CustomSliderWidget(min=0, max=45, num_type = "float", label="Pressure Angle:", default_val=20, 
                                                         tooltip = "", on_slide_fn=self.get_p_angle, display_range = True)
-                                self.gear_skew_ui = CustomSliderWidget(min=-20, max=20, num_type = "float", label="Skewness:", default_val=0, 
+                                self.gear_skew_ui = CustomSliderWidget(min=-1, max=1, num_type = "float", label="Skewness:", default_val=0, 
                                                         tooltip = "", on_slide_fn=self.get_skew, display_range = True)                       
 
-                                self.gear_conangle_ui = CustomSliderWidget(min=-20, max=20, num_type = "float", label="Conical angle:", default_val=0, 
+                                self.gear_conangle_ui = CustomSliderWidget(min=-1, max=1, num_type = "float", label="Conical angle:", default_val=0, 
                                                         tooltip = "", on_slide_fn=self.get_conangle, display_range = True)
-                                self.gear_crown_ui = CustomSliderWidget(min=-1, max=1, num_type = "float", label="Crown:", default_val=0, 
-                                                        tooltip = "", on_slide_fn=self.get_crown, display_range = True)                       
+
+                                with ui.HStack( visible = False):    
+                                    self.gear_crown_ui = CustomSliderWidget(min=-1, max=1, num_type = "float", label="Crown:", default_val=0, 
+                                                        tooltip = "", on_slide_fn=self.get_crown, display_range = True)                        
                         
                         ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
 

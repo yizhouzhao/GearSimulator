@@ -7,7 +7,7 @@ from math import (
 import omni
 from pxr import UsdGeom, Vt, Sdf, Gf, UsdPhysics, Usd
 
-from .add_mesh_gears import add_tooth, createFaces
+from .add_mesh_gears import add_tooth, createFaces 
 
 def create_mesh_from_verts_faces(verts, faces, mesh_path_str="/World/gear", scale = 100):
     """
