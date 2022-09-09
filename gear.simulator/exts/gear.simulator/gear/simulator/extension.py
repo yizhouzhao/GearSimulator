@@ -42,15 +42,15 @@ class MyExtension(omni.ext.IExt):
         # gear
         self.is_update_gear = False # create new gear of update gear
         self.current_gear_path_str = ""
-        self.current_gear_driver_speed = 0.05
+        self.current_gear_driver_speed = 0.2
         self.current_gear_is_driver = False
         self.drivers = {}
 
         self.current_teethNum = 12
         self.current_radius = 1.0
-        self.current_Ad = 0.1
-        self.current_De = 0.1 
-        self.current_base = 0.2
+        self.current_Ad = 0.2
+        self.current_De = 0.2 
+        self.current_base = 0.4
         self.current_p_angle = 20 
         self.current_width=0.2
         self.current_skew=0
@@ -95,16 +95,16 @@ class MyExtension(omni.ext.IExt):
                                                 tooltip = "", on_slide_fn=self.get_radius, display_range = True)                       
                         self.gear_width_ui = CustomSliderWidget(min=0, max=5, num_type = "float", label="Width:", default_val=0.2, 
                                                 tooltip = "", on_slide_fn=self.get_width, display_range = True)
-                        self.gear_base_ui = CustomSliderWidget(min=0, max=2, num_type = "float", label="Base:", default_val=0.2, 
+                        self.gear_base_ui = CustomSliderWidget(min=0, max=2, num_type = "float", label="Base:", default_val=0.4, 
                                                 tooltip = "", on_slide_fn=self.get_base, display_range = True)                       
                         
                         with ui.CollapsableFrame("OTHER PROPERTIES", collapsed = True):
                             with ui.VStack(height=0, spacing=0):
                                 ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
 
-                                self.gear_De_ui = CustomSliderWidget(min=0, max=2, num_type = "float", label="Dedendum:", default_val=0.1, 
+                                self.gear_De_ui = CustomSliderWidget(min=0, max=2, num_type = "float", label="Dedendum:", default_val=0.2, 
                                                         tooltip = "", on_slide_fn=self.get_de, display_range = True)
-                                self.gear_Ad_ui = CustomSliderWidget(min=0, max=1, num_type = "float", label="Addendum:", default_val=0.1, 
+                                self.gear_Ad_ui = CustomSliderWidget(min=0, max=1, num_type = "float", label="Addendum:", default_val=0.2, 
                                                         tooltip = "", on_slide_fn=self.get_ad, display_range = True)                       
 
                                 ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
@@ -119,17 +119,25 @@ class MyExtension(omni.ext.IExt):
                                 self.gear_crown_ui = CustomSliderWidget(min=-1, max=1, num_type = "float", label="Crown:", default_val=0, 
                                                         tooltip = "", on_slide_fn=self.get_crown, display_range = True)                       
                         
+                        ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
+
                         self.create_gear_botton = ui.Button("Create Gear", height = 40, name = "load_button", clicked_fn=self.create_mesh, style={ "margin": 4}, tooltip = "Add/Update gear into scene")
+                        self.add_gear_physic_botton = ui.Button("Add Gear Physics", height = 40, name = "load_button", clicked_fn=self.set_gear, style={ "margin": 4}, tooltip = "Add/Update gear into scene")
                    
                         ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
 
-                        self.driver_speed_ui = CustomSliderWidget(min=-2, max=2, num_type = "float", label="Speed:", default_val=0.05, 
-                                                        tooltip = "Gear rotation speed", on_slide_fn=self.get_driver_speed, display_range = True)                       
-                     
-                        self.add_driver_botton = ui.Button("Add Driver", height = 40, name = "load_button", clicked_fn=self.add_d6_driver)
+                        self.driver_frame = ui.CollapsableFrame("DRIVER", collapsed = True)
+                        with self.driver_frame:
+                            with ui.VStack(height=0, spacing=0):
+                                ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
 
-                        self.remove_driver_botton = ui.Button("Remove Driver", height = 20, name = "load_button", clicked_fn=self.remove_d6_driver, visible = False)
-                        
+                                self.driver_speed_ui = CustomSliderWidget(min=-3.14, max=3.14, num_type = "float", label="Speed:", default_val=0.2, 
+                                                                tooltip = "Gear rotation speed", on_slide_fn=self.get_driver_speed, display_range = True)                       
+        
+                                self.add_driver_botton = ui.Button("Add Driver", height = 40, name = "load_button", clicked_fn=self.add_d6_driver)
+
+                                self.remove_driver_botton = ui.Button("Remove Driver", height = 20, name = "load_button", clicked_fn=self.remove_d6_driver, visible = False)
+                                
 
 
                 with ui.CollapsableFrame("SCENE UTILITY"):
@@ -141,7 +149,7 @@ class MyExtension(omni.ext.IExt):
                         # open a new stage
                         ui.Button("New scene", height = 40, name = "load_button", clicked_fn=self.new_scene, style={ "margin": 4}, tooltip = "open a new empty stage")
                         # ground plane
-                        self.ground_color_ui = CustomColorWidget(0.86, 0.626, 0.273, label="Ground color:")
+                        self.ground_color_ui = CustomColorWidget(0.2, 0.2, 0.2, label="Ground color:")
                         ui.Button("Add/Remove ground plane", height = 40, name = "load_button", clicked_fn=self.toggle_ground_plane, style={ "margin": 4}, tooltip = "Add or remove the ground plane")
 
                         # light intensity
@@ -167,39 +175,67 @@ class MyExtension(omni.ext.IExt):
     def get_radius(self, radius):
         self.current_radius = radius
 
-        print("is_update_gear:", self.is_update_gear)
         if self.is_update_gear:
             self.create_mesh()
 
     def get_width(self, width):
         self.current_width = width
 
+        if self.is_update_gear:
+            self.create_mesh()
+
     def get_base(self, base):
         self.current_base = base
+
+        if self.is_update_gear:
+            self.create_mesh()
 
     def get_de(self, de):
         self.current_De = de
 
+        if self.is_update_gear:
+            self.create_mesh()
+
     def get_ad(self, ad):
         self.current_Ad = ad
+
+        if self.is_update_gear:
+            self.create_mesh()
 
     def get_p_angle(self, angle):
         self.current_p_angle = angle 
 
+        if self.is_update_gear:
+            self.create_mesh()
+
     def get_skew(self, skew):
         self.current_skew = skew
+
+        if self.is_update_gear:
+            self.create_mesh()
     
     def get_conangle(self, coangle):
         self.current_conangle = coangle
 
+        if self.is_update_gear:
+            self.create_mesh()
+
     def get_crown(self, crown):
         self.current_crown = crown
+
+        if self.is_update_gear:
+            self.create_mesh()
 
     def get_driver_speed(self, speed):
         """
         Current gear is driver
         """
         self.current_gear_driver_speed = speed
+
+        gear_root_path_str = self.current_gear_path_str
+        if len(gear_root_path_str) > 0 and gear_root_path_str in self.drivers:
+            # record driver
+            self.drivers[gear_root_path_str]["speed"] = self.current_gear_driver_speed
 
     ######################### gear model #########################################
 
@@ -211,17 +247,25 @@ class MyExtension(omni.ext.IExt):
         damping = 1e8
         stiffness = 0 #2e5
 
+        anchorXform = UsdGeom.Xform.Get(
+            stage, Sdf.Path(f"{gear_root}/Anchor") 
+        )
+
+        # already rigged
+        if anchorXform:
+            return 
+
         # create anchor:
-        self._anchorXform = UsdGeom.Xform.Define(
+        anchorXform = UsdGeom.Xform.Define(
             stage, Sdf.Path(f"{gear_root}/Anchor") 
         )
         # these are global coords because world is the xform's parent
         xformLocalToWorldTrans = Gf.Vec3f(0)
         xformLocalToWorldRot = Gf.Quatf(1.0)
-        self._anchorXform.AddTranslateOp().Set(xformLocalToWorldTrans)
-        self._anchorXform.AddOrientOp().Set(xformLocalToWorldRot)
+        anchorXform.AddTranslateOp().Set(xformLocalToWorldTrans)
+        anchorXform.AddOrientOp().Set(xformLocalToWorldRot)
       
-        xformPrim = self._anchorXform.GetPrim()
+        xformPrim = anchorXform.GetPrim()
         physicsAPI = UsdPhysics.RigidBodyAPI.Apply(xformPrim)
         physicsAPI.CreateRigidBodyEnabledAttr(True)
         physicsAPI.CreateKinematicEnabledAttr(True)
@@ -231,20 +275,20 @@ class MyExtension(omni.ext.IExt):
             stage, Sdf.Path(f"{gear_root}/D6Joint") # allegro/
         ) 
 
-        
+         
         self._articulation_root = stage.GetPrimAtPath(f"{gear_root}/model")   
         baseLocalToWorld = UsdGeom.Xformable(self._articulation_root).ComputeLocalToWorldTransform(Usd.TimeCode.Default())
-        jointPosition = baseLocalToWorld.GetInverse().Transform(xformLocalToWorldTrans)
-        jointPose = Gf.Quatf(baseLocalToWorld.GetInverse().RemoveScaleShear().ExtractRotationQuat())
+        # jointPosition = baseLocalToWorld.GetInverse().Transform(xformLocalToWorldTrans)
+        # jointPose = Gf.Quatf(baseLocalToWorld.GetInverse().RemoveScaleShear().ExtractRotationQuat())
 
         component.CreateExcludeFromArticulationAttr().Set(True)
         component.CreateLocalPos0Attr().Set(Gf.Vec3f(0.0))
         component.CreateLocalRot0Attr().Set(Gf.Quatf(1.0))
-        component.CreateBody0Rel().SetTargets([self._anchorXform.GetPath()])
+        component.CreateBody0Rel().SetTargets([anchorXform.GetPath()])
 
         component.CreateBody1Rel().SetTargets([self._articulation_root.GetPath()])
-        component.CreateLocalPos1Attr().Set(jointPosition)
-        component.CreateLocalRot1Attr().Set(jointPose)
+        component.CreateLocalPos1Attr().Set(Gf.Vec3f(0.0))
+        component.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
 
         component.CreateBreakForceAttr().Set(sys.float_info.max)
         component.CreateBreakTorqueAttr().Set(sys.float_info.max)
@@ -286,6 +330,12 @@ class MyExtension(omni.ext.IExt):
         # get gear root prim 
         gear_root_path_str = self.current_gear_path_str
         gear_root_prim = stage.GetPrimAtPath(gear_root_path_str)
+
+        # if no anchor, rig it
+        anchor_prim_path = f"{self.current_gear_path_str}/Anchor"
+        anchor_prim = stage.GetPrimAtPath(anchor_prim_path)
+        if not anchor_prim.IsValid():
+            self.set_gear()
 
         # update attribute
         is_driver = gear_root_prim.GetAttribute("gear:is_driver").Get()
@@ -370,7 +420,7 @@ class MyExtension(omni.ext.IExt):
             self.remove_d6_driver()
             omni.kit.commands.execute("DeletePrims", paths=[f"{self.current_gear_path_str}/model"])
             gear_xform_path_str = self.current_gear_path_str
-
+        # if create new gear
         else:
             gear_path_str = f"/World/gear" 
             # create xform as root
@@ -407,52 +457,49 @@ class MyExtension(omni.ext.IExt):
             self.current_crown,
             gear_root=model_xform_path_str
             )
-        
-        model_xform_prim = stage.GetPrimAtPath(model_xform_path_str)
-        if self.current_radius >= 0:
-            setRigidBody(model_xform_prim, "convexHull", False)
-        else:
-            setRigidBody(model_xform_prim, "convexDecomposition", False)
+    
 
-        # if create for the first time, 
-        if not self.is_update_gear:
-            self.set_gear()
-
-    def set_gear(self):
-        """
-        Set up gear
-        """
-        # add rigid body
-        
-        gear_xform_path_str = self.current_gear_path_str
-        stage = omni.usd.get_context().get_stage()
-
-        # set attribute
         gear_root_prim = stage.GetPrimAtPath(gear_xform_path_str)
         gear_root_prim.CreateAttribute("gear:name",  Sdf.ValueTypeNames.String, False).Set(gear_xform_path_str.split("/")[-1])
         
         for attr_name in GEAR_PROPERTIES:  
             if attr_name == "teethNum":
-                  gear_root_prim.CreateAttribute(f"gear:{attr_name}",  Sdf.ValueTypeNames.Int, False).Set(getattr(self, f"current_{attr_name}"))
+                gear_root_prim.CreateAttribute(f"gear:{attr_name}",  Sdf.ValueTypeNames.Int, False).Set(getattr(self, f"current_{attr_name}"))
             else:
                 gear_root_prim.CreateAttribute(f"gear:{attr_name}",  Sdf.ValueTypeNames.Float, False).Set(getattr(self, f"current_{attr_name}"))
         
-
         gear_root_prim.CreateAttribute(f"gear:is_driver",  Sdf.ValueTypeNames.Bool, False).Set(False)
         gear_root_prim.CreateAttribute(f"gear:driver_speed",  Sdf.ValueTypeNames.Float, False).Set(0)
         
-        # reset driver
-        if gear_xform_path_str in self.drivers:
-            del self.drivers[gear_xform_path_str]
+        # if create for the first time
+        if not self.is_update_gear:
+            # reset driver
+            if gear_xform_path_str in self.drivers:
+                del self.drivers[gear_xform_path_str]
+        
+            # selection
+            selection = omni.usd.get_context().get_selection()
+            selection.clear_selected_prim_paths()
+            selection.set_prim_path_selected(gear_xform_path_str, True, False, True, True)
+
+    def set_gear(self):
+        """
+        Set up rigid body and joint for gear
+        """
+        # setup joint to floating hand base
+        stage = omni.usd.get_context().get_stage()
+
+        gear_xform_path_str = self.current_gear_path_str
+
+        # rigid body
+        model_xform_prim = stage.GetPrimAtPath(f"{gear_xform_path_str}/model")
+        if self.current_radius >= 0:
+            setRigidBody(model_xform_prim, "convexHull", False)
+        else:
+            setRigidBody(model_xform_prim, "convexDecomposition", False)
 
         # add d6 joint
         self.rig_d6(gear_root=gear_xform_path_str, is_driver=False)
-
-        # selection
-        selection = omni.usd.get_context().get_selection()
-        selection.clear_selected_prim_paths()
-        selection.set_prim_path_selected(gear_xform_path_str, True, False, True, True)
-        
 
 
     ############################################## scene utiltiy #####################################
@@ -576,9 +623,12 @@ class MyExtension(omni.ext.IExt):
             # reset gear button
             self.current_gear_path_str = ""
             self.is_update_gear = False
-            self.create_gear_botton.text = "Create Gear"
+            self.create_gear_botton.visible = True
             self.add_driver_botton.text = "Add Driver"
+            self.driver_frame.collapsed = True
+            self.add_driver_botton.visible = True
             self.remove_driver_botton.visible = False
+            self.add_gear_physic_botton.visible = False
 
             context  = omni.usd.get_context()
             stage = context.get_stage()
@@ -608,12 +658,15 @@ class MyExtension(omni.ext.IExt):
                     # update button
                     self.current_gear_path_str = gear_root.GetPath().pathString
                     self.is_update_gear = True # updating gear rather than create new gear
-                    self.create_gear_botton.text = "Update Gear"
+                    self.create_gear_botton.visible = False
+                    self.add_gear_physic_botton.visible = True
+                    self.driver_frame.collapsed = False
 
                     if gear_root.GetAttribute(f"gear:is_driver").Get():
                         speed = gear_root.GetAttribute(f"gear:driver_speed").Get()
                         self.driver_speed_ui.model.set_value(speed)
-                        self.add_driver_botton.text = "Update Driver"
+                        self.add_driver_botton.visible = False
                         self.remove_driver_botton.visible = True
+                        
                     
             
