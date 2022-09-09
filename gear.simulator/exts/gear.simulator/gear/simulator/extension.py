@@ -81,7 +81,7 @@ class MyExtension(omni.ext.IExt):
         """
         Build ui
         """
-        self._window = ui.Window("My Window", width=300)
+        self._window = ui.Window("Gear simulator", width=300)
         with self._window.frame:
             self._window.frame.style = julia_modeler_style
             with ui.VStack(height = 0):
@@ -89,9 +89,9 @@ class MyExtension(omni.ext.IExt):
                     with ui.VStack(height=0, spacing=0):
                         ui.Line(style_type_name_override="HeaderLine")
                         ui.Spacer(height = 4)
-                        self.gear_teethNum_ui = CustomSliderWidget(min=3, max=20, num_type = "int", label="Teeth number:", default_val=12, 
+                        self.gear_teethNum_ui = CustomSliderWidget(min=3, max=60, num_type = "int", label="Teeth number:", default_val=12, 
                                                 tooltip = "", on_slide_fn=self.get_teethNum, display_range = True)
-                        self.gear_radius_ui = CustomSliderWidget(min=-2, max=2, num_type = "float", label="Radius:", default_val=1, 
+                        self.gear_radius_ui = CustomSliderWidget(min=-5, max=5, num_type = "float", label="Radius:", default_val=1, 
                                                 tooltip = "", on_slide_fn=self.get_radius, display_range = True)                       
                         self.gear_width_ui = CustomSliderWidget(min=0, max=5, num_type = "float", label="Width:", default_val=0.2, 
                                                 tooltip = "", on_slide_fn=self.get_width, display_range = True)
@@ -126,7 +126,7 @@ class MyExtension(omni.ext.IExt):
                    
                         ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
 
-                        self.driver_frame = ui.CollapsableFrame("DRIVER", collapsed = True)
+                        self.driver_frame = ui.CollapsableFrame("DRIVER", collapsed = False)
                         with self.driver_frame:
                             with ui.VStack(height=0, spacing=0):
                                 ui.Line(style={"color":"gray", "margin_height": 8, "margin_width": 20})
@@ -137,7 +137,13 @@ class MyExtension(omni.ext.IExt):
                                 self.add_driver_botton = ui.Button("Add Driver", height = 40, name = "load_button", clicked_fn=self.add_d6_driver)
 
                                 self.remove_driver_botton = ui.Button("Remove Driver", height = 20, name = "load_button", clicked_fn=self.remove_d6_driver, visible = False)
-                                
+                        
+                        with ui.CollapsableFrame("BIND", collapsed = False):
+                            with ui.VStack(height=0, spacing=0):
+                                with ui.HStack():
+                                    ui.Button("Bind Gear", height = 40, name = "record_button", clicked_fn=self.link_gears)
+                                    ui.Button("UnBind", height = 40, name = "record_button", clicked_fn=self.unlink_gears)
+                                    
 
 
                 with ui.CollapsableFrame("SCENE UTILITY"):
@@ -233,9 +239,12 @@ class MyExtension(omni.ext.IExt):
         self.current_gear_driver_speed = speed
 
         gear_root_path_str = self.current_gear_path_str
-        if len(gear_root_path_str) > 0 and gear_root_path_str in self.drivers:
+        if len(gear_root_path_str) > 0:
             # record driver
-            self.drivers[gear_root_path_str]["speed"] = self.current_gear_driver_speed
+            stage = omni.usd.get_context().get_stage()
+            prim = stage.GetPrimAtPath(gear_root_path_str)
+            if prim.HasAttribute("gear:is_driver") and prim.GetAttribute("gear:is_driver").Get():
+                prim.GetAttribute("gear:driver_speed").Set(self.current_gear_driver_speed)
 
     ######################### gear model #########################################
 
@@ -364,11 +373,11 @@ class MyExtension(omni.ext.IExt):
         gear_root_prim.GetAttribute("gear:driver_speed").Set(self.current_gear_driver_speed)
 
         # record driver
-        self.drivers[gear_root_path_str] = {
-            "Anchor":f"{gear_root_path_str}/Anchor",
-            "D6Joint":f"{gear_root_path_str}/D6Joint",
-            "speed": self.current_gear_driver_speed,
-        }
+        # self.drivers[gear_root_path_str] = {
+        #     "Anchor":f"{gear_root_path_str}/Anchor",
+        #     "D6Joint":f"{gear_root_path_str}/D6Joint",
+        #     "speed": self.current_gear_driver_speed,
+        # }
 
         # selection
         selection = omni.usd.get_context().get_selection()
@@ -396,8 +405,8 @@ class MyExtension(omni.ext.IExt):
             omni.kit.commands.execute("RemovePhysicsComponent", usd_prim=jointPrim, component="PhysicsDriveAPI", multiple_api_token=None)
 
             # delete physics update
-            if gear_root_path_str in self.drivers:
-                del self.drivers[gear_root_path_str]
+            # if gear_root_path_str in self.drivers:
+            #     del self.drivers[gear_root_path_str]
 
             # update attribute
             gear_root_prim.GetAttribute(f"gear:is_driver").Set(False)
@@ -474,8 +483,8 @@ class MyExtension(omni.ext.IExt):
         # if create for the first time
         if not self.is_update_gear:
             # reset driver
-            if gear_xform_path_str in self.drivers:
-                del self.drivers[gear_xform_path_str]
+            # if gear_xform_path_str in self.drivers:
+            #     del self.drivers[gear_xform_path_str]
         
             # selection
             selection = omni.usd.get_context().get_selection()
@@ -491,16 +500,96 @@ class MyExtension(omni.ext.IExt):
 
         gear_xform_path_str = self.current_gear_path_str
 
+        # move and recalculate physic
+        # move_dict = {f"{gear_xform_path_str}/model": f"{gear_xform_path_str}/model_temp"}
+        # omni.kit.commands.execute("MovePrims", paths_to_move=move_dict,  on_move_fn=None)
+
         # rigid body
         model_xform_prim = stage.GetPrimAtPath(f"{gear_xform_path_str}/model")
         if self.current_radius >= 0:
             setRigidBody(model_xform_prim, "convexHull", False)
         else:
             setRigidBody(model_xform_prim, "convexDecomposition", False)
+    
+        
+        # select ground
+        # selection = omni.usd.get_context().get_selection()
+        # selection.clear_selected_prim_paths()
+        # selection.set_prim_path_selected(f"{gear_xform_path_str}/model_temp", True, True, True, True)
+
+        # # moveback
+        # move_dict = {f"{gear_xform_path_str}/model_temp": f"{gear_xform_path_str}/model"}
+        # omni.kit.commands.execute("MovePrims", paths_to_move=move_dict,  on_move_fn=None)
 
         # add d6 joint
         self.rig_d6(gear_root=gear_xform_path_str, is_driver=False)
 
+        
+
+    def link_gears(self, unbind = False):
+        """
+        Add fixed joint to two gears
+        """
+
+        context  = omni.usd.get_context()
+        stage = context.get_stage()
+        prim_paths = context.get_selection().get_selected_prim_paths()
+
+        # only two gear
+        if len(prim_paths) != 2:
+            print("Please select two gears")
+            return 
+
+        gear0 = stage.GetPrimAtPath(prim_paths[0])
+        gear1 = stage.GetPrimAtPath(prim_paths[1])
+
+        gear0_model_xform = UsdGeom.Xformable(stage.GetPrimAtPath(f"{prim_paths[0]}/model"))
+        gear0_mat = gear0_model_xform.ComputeLocalToWorldTransform(0)
+        gear0_pos = gear0_mat.ExtractTranslation()
+
+
+        gear1_model_xform = UsdGeom.Xformable(stage.GetPrimAtPath(f"{prim_paths[1]}/model"))
+        gear1_mat = gear1_model_xform.ComputeLocalToWorldTransform(0)
+        gear1_pos = gear0_mat.ExtractTranslation()
+
+        if not gear0.HasAttribute("gear:name") or not gear1.HasAttribute("gear:name"):
+            print("Please select two gears")
+            return
+
+        if gear0.GetAttribute("gear:is_driver").Get() and gear1.GetAttribute("gear:is_driver").Get():
+            print("Cannot bind two gears with drivers")
+            return
+
+        # get joint
+        fixedJoint = UsdPhysics.FixedJoint.Get(stage, Sdf.Path(f"{prim_paths[0]}/FixedJoint"))
+        
+        # unbind
+        if unbind:
+            if fixedJoint:
+                fixedJoint.CreateJointEnabledAttr().Set(False)
+                print(f"Fixed joint between {prim_paths[0]} and {prim_paths[0]} disabled.")
+        else:
+            if not fixedJoint:
+                fixedJoint = UsdPhysics.FixedJoint.Define(stage, Sdf.Path(f"{prim_paths[0]}/FixedJoint"))
+
+            fixedJoint.CreateBody0Rel().SetTargets([Sdf.Path(f"{prim_paths[0]}/model")])
+            fixedJoint.CreateBody1Rel().SetTargets([Sdf.Path(f"{prim_paths[1]}/model")])
+
+            jointWorldPos = 0.5 * (gear0_pos + gear1_pos)
+            jointParentPosition = gear0_mat.GetInverse().Transform(jointWorldPos)
+            jointChildPosition = gear1_mat.GetInverse().Transform(jointWorldPos)
+
+            print("jointParentPosition", jointParentPosition)
+            fixedJoint.CreateLocalPos0Attr().Set(jointParentPosition)
+            fixedJoint.CreateLocalRot0Attr().Set(Gf.Quatf(1.0))
+
+            fixedJoint.CreateLocalPos1Attr().Set(jointChildPosition)
+            fixedJoint.CreateLocalRot1Attr().Set(Gf.Quatf(1.0))
+            
+            fixedJoint.CreateJointEnabledAttr().Set(True)
+        
+    def unlink_gears(self):
+        self.link_gears(unbind=True)
 
     ############################################## scene utiltiy #####################################
 
@@ -575,10 +664,8 @@ class MyExtension(omni.ext.IExt):
         """
         Physics update
         """
-        on_start = self.total_time == 0
         self.total_time += dt
         # print("dt", dt)
-        delete_driver_list = [] # delete invalid drivers        
         for gear_root in self.drivers:
             # print("gear_root", gear_root)
             anchor = self.stage.GetPrimAtPath(self.drivers[gear_root]["Anchor"])
@@ -598,23 +685,41 @@ class MyExtension(omni.ext.IExt):
                 q1 = Gf.Quatf(math.cos(angle * 0.5), s * 0, s * 0, s * 1)
                 orientOp.Set(q1)
                 # print("orientOp", angle, q1)
-            # translateOp.Set(self._anchorPositionRateLimiter.current_value)
-            else:
-                # print("invalid gear", gear_root)
-                delete_driver_list.append(gear_root)
-
-        # delete invalid drivers
-        if on_start:
-            for d in delete_driver_list:
-                del self.drivers[d]
+                # translateOp.Set(self._anchorPositionRateLimiter.current_value)
 
         
     def _on_timeline_event(self, e):
+        """
+        Timeline events
+        """
         if e.type == int(omni.timeline.TimelineEventType.STOP):
+            # reset driver
             # self._physics_update_sub = None
             self.total_time = 0.0
+            for gear_root in self.drivers:
+                anchor = self.stage.GetPrimAtPath(self.drivers[gear_root]["Anchor"])
+                if anchor.IsValid():
+                    anchor_xform = UsdGeom.Xform(anchor)
+                    ops = anchor_xform.GetOrderedXformOps()
+                    orientOp = ops[1]
+                    assert orientOp.GetOpType() == UsdGeom.XformOp.TypeOrient
+                    orientOp.Set(Gf.Quatf(1.0))
+
         if e.type == int(omni.timeline.TimelineEventType.PLAY):
+            # search driver
             self.stage = omni.usd.get_context().get_stage()
+            prim_list = self.stage.TraverseAll()
+
+            driver_prims = [prim for prim in prim_list if prim.HasAttribute("gear:is_driver") and prim.GetAttribute("gear:is_driver").Get()]
+            print("driver_prims", driver_prims)
+            self.drivers = {}
+            for prim in driver_prims:
+                self.drivers[prim.GetPath().pathString] = {
+                    "Anchor": f"{prim.GetPath().pathString}/Anchor",
+                    "speed": prim.GetAttribute("gear:driver_speed").Get()
+                }
+
+
 
     def _on_stage_event(self, event):
         """Called by stage_event_stream"""
